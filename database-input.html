@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Strata Dashboard Code Generator</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <style>
+    /* --- Reset & Base --- */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f7fa;
+      color: #333;
+    }
+
+    /* --- Header --- */
+    .site-header {
+      background: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .site-header .logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #000;
+    }
+    .site-header nav ul {
+      list-style: none;
+      display: flex;
+      gap: 2rem;
+    }
+    .site-header nav a {
+      text-decoration: none;
+      color: #333;
+      font-weight: 500;
+    }
+    .site-header .user-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .site-header .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #ddd;
+    }
+    .site-header .logout {
+      background: #7c3aed;
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    /* --- Main & Controls --- */
+    main {
+      padding: 2rem;
+    }
+    #csv-input,
+    #generate-btn {
+      margin-bottom: 1rem;
+      display: block;
+    }
+    #generate-btn {
+      padding: 0.5rem 1rem;
+      background: #1e3a8a;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #output-code {
+      width: 100%;
+      height: 300px;
+      margin-top: 1rem;
+      font-family: monospace;
+      display: none;
+    }
+    .note {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="logo">strata.</div>
+    <nav>
+      <ul>
+        <li><a href="#">Dashboard</a></li>
+        <li><a href="#">Explore</a></li>
+        <li><a href="#">Wallet</a></li>
+        <li><a href="#">Rewards</a></li>
+      </ul>
+    </nav>
+    <div class="user-actions">
+      <div class="avatar"></div>
+      <button class="logout">Log Out</button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main>
+    <h1>Generate Strata Dashboard Code</h1>
+    <p class="note">
+      Upload a CSV with headers:<br>
+      <code>
+        Name,ID,Grade,Points,Credential,Issuer,Issue Date,Expiration Date,Tracks,College is 4U.items,College is 4U.progress,Career Readiness.items,Career Readiness.progress
+      </code>
+    </p>
+    <input type="file" id="csv-input" accept=".csv">
+    <button id="generate-btn">Generate Code</button>
+    <textarea id="output-code" placeholder="Your generated HTML will appear here…"></textarea>
+  </main>
+
+  <script>
+    let parsedRows = [];
+
+    // 1) Parse CSV on upload
+    document.getElementById('csv-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: results => {
+          parsedRows = results.data;
+          alert(`Parsed ${parsedRows.length} rows.`);
+        }
+      });
+    });
+
+    // 2) Build the final code when clicked
+    document.getElementById('generate-btn').addEventListener('click', () => {
+      if (!parsedRows.length) {
+        return alert('Please upload a CSV first.');
+      }
+
+      const lines = [];
+
+      // --- GENERATED HTML HEAD & STYLE ---
+      lines.push('<!DOCTYPE html>');
+      lines.push('<html lang="en">');
+      lines.push('<head>');
+      lines.push('  <meta charset="UTF-8">');
+      lines.push('  <title>Strata Dashboard Spreadsheet</title>');
+      lines.push('  <style>');
+      lines.push('    * { box-sizing:border-box; margin:0; padding:0; }');
+      lines.push('    body { font-family: Arial, sans-serif; background:#f4f7fa; color:#333; }');
+      lines.push('    .site-header { background:#fff; padding:1rem 2rem; display:flex; align-items:center; justify-content:space-between; box-shadow:0 1px 3px rgba(0,0,0,0.1); }');
+      lines.push('    .site-header .logo { font-size:1.5rem; font-weight:bold; color:#000; }');
+      lines.push('    .site-header nav ul { list-style:none; display:flex; gap:2rem; }');
+      lines.push('    .site-header nav a { text-decoration:none; color:#333; font-weight:500; }');
+      lines.push('    .site-header .user-actions { display:flex; align-items:center; gap:1rem; }');
+      lines.push('    .site-header .avatar { width:32px; height:32px; border-radius:50%; background:#ddd; }');
+      lines.push('    .site-header .logout { background:#7c3aed; color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer; font-weight:500; }');
+      lines.push('    main { padding:2rem; }');
+      lines.push('    .table-wrapper { overflow-x:auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }');
+      lines.push('    table { width:100%; border-collapse:collapse; }');
+      lines.push('    thead { background:#1e3a8a; color:#fff; }');
+      lines.push('    th, td { padding:0.75rem 1rem; border-bottom:1px solid #e2e8f0; text-align:left; white-space:nowrap; }');
+      lines.push('    tbody tr:nth-child(even) { background:#f9f9f9; }');
+      lines.push('    tbody tr:hover { background:#e2e8f0; }');
+      lines.push('  </style>');
+      lines.push('</head>');
+      lines.push('<body>');
+
+      // --- HEADER ---
+      lines.push('  <header class="site-header">');
+      lines.push('    <div class="logo">strata.</div>');
+      lines.push('    <nav>');
+      lines.push('      <ul>');
+      lines.push('        <li><a href="#">Dashboard</a></li>');
+      lines.push('        <li><a href="#">Explore</a></li>');
+      lines.push('        <li><a href="#">Wallet</a></li>');
+      lines.push('        <li><a href="#">Rewards</a></li>');
+      lines.push('      </ul>');
+      lines.push('    </nav>');
+      lines.push('    <div class="user-actions">');
+      lines.push('      <div class="avatar"></div>');
+      lines.push('      <button class="logout">Log Out</button>');
+      lines.push('    </div>');
+      lines.push('  </header>');
+
+      // --- TABLE STRUCTURE ---
+      lines.push('  <main>');
+      lines.push('    <h1>Student Credentials</h1>');
+      lines.push('    <div class="table-wrapper">');
+      lines.push('      <table>');
+      lines.push('        <thead>');
+      lines.push('          <tr>');
+      lines.push('            <th>Name</th>');
+      lines.push('            <th>ID</th>');
+      lines.push('            <th>Grade</th>');
+      lines.push('            <th>Points</th>');
+      lines.push('            <th>Credential</th>');
+      lines.push('            <th>Issuer</th>');
+      lines.push('            <th>Issue Date</th>');
+      lines.push('            <th>Expiration Date</th>');
+      lines.push('            <th>Tracks</th>');
+      lines.push('            <th>College is 4U.items</th>');
+      lines.push('            <th>College is 4U.progress</th>');
+      lines.push('            <th>Career Readiness.items</th>');
+      lines.push('            <th>Career Readiness.progress</th>');
+      lines.push('          </tr>');
+      lines.push('        </thead>');
+      lines.push('        <tbody id="data-body"></tbody>');
+      lines.push('      </table>');
+      lines.push('    </div>');
+      lines.push('  </main>');
+
+      // --- SCRIPT TO INJECT DATA ---
+      lines.push('  <script>');
+      lines.push('    const rows = ' + JSON.stringify(parsedRows, null, 2) + ';');
+      lines.push('    const tbody = document.getElementById("data-body");');
+      lines.push('    rows.forEach(r => {');
+      lines.push('      const tr = document.createElement("tr");');
+      lines.push('      tr.innerHTML = `');
+      lines.push('        <td>${r.Name}</td>');
+      lines.push('        <td>${r.ID}</td>');
+      lines.push('        <td>${r.Grade}</td>');
+      lines.push('        <td>${r.Points}</td>');
+      lines.push('        <td>${r.Credential}</td>');
+      lines.push('        <td>${r.Issuer}</td>');
+      lines.push('        <td>${r["Issue Date"]}</td>');
+      lines.push('        <td>${r["Expiration Date"]}</td>');
+      lines.push('        <td>${r.Tracks}</td>');
+      lines.push('        <td>${r["College is 4U.items"]}</td>');
+      lines.push('        <td>${r["College is 4U.progress"]}</td>');
+      lines.push('        <td>${r["Career Readiness.items"]}</td>');
+      lines.push('        <td>${r["Career Readiness.progress"]}</td>');
+      lines.push('      `;');
+      lines.push('      tbody.appendChild(tr);');
+      lines.push('    });');
+      lines.push('  <\/script>');
+      lines.push('</body>');
+      lines.push('</html>');
+
+      // display in textarea
+      const out = document.getElementById('output-code');
+      out.value = lines.join('\n');
+      out.style.display = 'block';
+    });
+  </script>
+
+</body>
+</html>
