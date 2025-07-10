@@ -1,164 +1,537 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Strata Dashboard Code Generator</title>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Selector & Dashboard Generator</title>
   <style>
-    /* --- Generator UI styles (unchanged) --- */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; background: #f4f7fa; color: #333; }
-    .site-header { background: #fff; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .site-header .logo { font-size: 1.5rem; font-weight: bold; color: #000; }
-    .site-header nav ul { list-style: none; display: flex; gap: 2rem; }
-    .site-header nav a { text-decoration: none; color: #333; font-weight: 500; }
-    .site-header .user-actions { display: flex; align-items: center; gap: 1rem; }
-    .site-header .avatar { width: 32px; height: 32px; border-radius: 50%; background: #ddd; }
-    .site-header .logout { background: #7c3aed; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 500; }
-
-    main { padding: 2rem; }
-    #csv-input,
-    #generate-btn { margin-bottom: 1rem; display: block; }
-    #generate-btn { padding: 0.5rem 1rem; background: #1e3a8a; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    #output-code { width: 100%; height: 300px; margin-top: 1rem; font-family: monospace; display: none; }
-    .note { font-size: 0.9rem; color: #666; margin-bottom: 0.5rem; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #f4f7fa;
+      color: #333;
+    }
+    button, select {
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin-top: 1rem;
+    }
+    textarea {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.5rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      resize: vertical;
+    }
+    #student-info table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    #student-info th,
+    #student-info td {
+      text-align: left;
+      padding: 0.5rem;
+      border-bottom: 1px solid #ddd;
+    }
+    #student-info th {
+      background: #f0f0f0;
+      width: 30%;
+    }
+    #generate-dashboard {
+      display: none;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Generator page HEADER -->
-  <header class="site-header">
-    <div class="logo">strata.</div>
-    <nav>
-      <ul>
-        <li><a href="#">Dashboard</a></li>
-        <li><a href="#">Explore</a></li>
-        <li><a href="#">Wallet</a></li>
-        <li><a href="#">Rewards</a></li>
-      </ul>
-    </nav>
-    <div class="user-actions">
+  <button id="begin-query">Begin Query</button>
+
+  <div id="selector-container" style="display:none;">
+    <label for="student-select">Select student:</label>
+    <select id="student-select">
+      <option value="" disabled selected>— select student —</option>
+    </select>
+  </div>
+
+  <textarea id="output" placeholder="Fetched HTML will appear here…" readonly style="height:20vh;"></textarea>
+
+  <div id="student-info"></div>
+
+  <button id="generate-dashboard">Generate Dashboard</button>
+
+  <textarea id="generated-code" placeholder="Generated dashboard code will appear here…" readonly style="height:40vh;"></textarea>
+
+  <script>
+    let allRows = [];
+
+    const beginBtn    = document.getElementById('begin-query');
+    const output      = document.getElementById('output');
+    const selectorDiv = document.getElementById('selector-container');
+    const selectEl    = document.getElementById('student-select');
+    const infoDiv     = document.getElementById('student-info');
+    const genBtn      = document.getElementById('generate-dashboard');
+    const genOutput   = document.getElementById('generated-code');
+
+    selectEl.addEventListener('change', () => {
+      const student = allRows.find(r => r.Name === selectEl.value);
+      if (!student) return;
+
+      let html = '<table>';
+      Object.entries(student).forEach(([key,val]) => {
+        html += `
+          <tr><th>${key}</th><td>${val}</td></tr>`;
+      });
+      html += '</table>';
+      infoDiv.innerHTML = html;
+      genBtn.style.display = 'inline-block';
+    });
+
+    genBtn.addEventListener('click', () => {
+      const s = allRows.find(r => r.Name === selectEl.value);
+      if (!s) return;
+
+      const profileName  = s.Name;
+      const profileEmail = s.Email || '';
+      const profileGrade = s.Grade;
+      const pointCount    = s.Points || 0;
+      const credCount    = s.Credential_Count || 0;
+      const pathCount    = s.Pathways || 0;
+      const tracks       = s.Tracks ? s.Tracks.split(',').map(t=>t.trim()) : [];
+
+      const trackSections = tracks.map(trackName => {
+        const itemsKey    = `${trackName}.items`;
+        const progressKey = `${trackName}.progress`;
+        const itemsList   = (s[itemsKey]||'').split(',').map(i=>i.trim()).filter(i=>i);
+        const currentMod  = itemsList.length ? itemsList[itemsList.length-1] : '—';
+        const progVal     = s[progressKey] || 0;
+        return `
+      <section class="keep-learning">
+        <div class="kl-progress-bar">
+          <div class="fill" style="width:${progVal}%">${progVal}%</div>
+        </div>
+        <div class="kl-content">
+          <div class="course-info">
+            <div class="label">Private Track</div>
+            <h3>${trackName}</h3>
+            <p class="module">Current Module: ${currentMod}</p>
+          </div>
+          <div class="plan-suggestion">
+            <h4>Your Pathway to ${trackName}!</h4>
+            <p>Keep making progress in your ${trackName} track.</p>
+            <div class="plan-actions">
+              <button class="btn-plan">View in Wallet</button>
+              <button class="btn-dismiss">View Details</button>
+            </div>
+          </div>
+        </div>
+        <a href="#" class="btn-resume">Resume →</a>
+        <a href="#" class="view-all">View all learning in progress →</a>
+      </section>`;
+      }).join('\n');
+
+      const dashboardHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Strata Digital Wallet</title>
+  <!-- Inter font & Font Awesome -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet"/>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
+  <style>
+    /* ----- Global & Reset ----- */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-family: 'Inter', sans-serif; color: #1a1a1a; }
+    body { background: #fdf7f0; }
+
+    /* ----- Top Navigation ----- */
+    .top-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 2rem;
+      background: #fff;
+      border-bottom: 1px solid #eee;
+    }
+    .top-nav .logo {
+      font-weight: 600;
+      font-size: 1.25rem;
+    }
+    .top-nav .nav-links {
+      list-style: none;
+      display: flex;
+      gap: 1.25rem;
+    }
+    .top-nav .nav-links a {
+      text-decoration: none;
+      color: #333;
+      font-weight: 500;
+    }
+    .top-nav .nav-links .new {
+      color: #b31aff;
+      font-weight: 600;
+    }
+    .top-nav .actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .top-nav .actions i {
+      font-size: 1.1rem;
+      color: #555;
+      cursor: pointer;
+    }
+    .top-nav .actions .avatar {
+      width: 32px; height: 32px;
+      background: #ccc;
+      border-radius: 50%;
+    }
+    .top-nav .btn-free {
+      background: #6a45e5;
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    /* ----- Dashboard Layout ----- */
+    .dashboard {
+      display: flex;
+      height: calc(100vh - 64px);
+    }
+    .sidebar {
+      width: 260px;
+      background: #fff;
+      border-right: 1px solid #eee;
+      padding: 2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .sidebar nav ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .sidebar nav li {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+    }
+    .sidebar nav li.active {
+      font-weight: 600;
+      color: #000;
+    }
+    .sidebar .upgrade {
+      font-size: 0.75rem;
+      color: #888;
+      background: #f0f0f0;
+      border-radius: 4px;
+      padding: 0 4px;
+    }
+    .trial-cta h4 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .trial-cta p {
+      font-size: 0.875rem;
+      color: #555;
+      margin-bottom: 1rem;
+    }
+    .btn-try {
+      background: #000;
+      color: #fff;
+      border: none;
+      padding: 0.5rem;
+      width: 100%;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    /* ----- Main Content ----- */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      background: #e8e7e7;
+    }
+
+    /* Profile & Notification Cards */ 
+    .container {
+      display: flex;
+      gap: 20px;
+      padding: 40px;
+    }
+    .profile-card, .notification-card {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      flex: 1;
+      box-sizing: border-box;
+    }
+    .notification-banner {
+      background-color: #c2b6e7;
+      border-left: 6px solid #6a45e5;
+      padding: 10px;
+      border-radius: 5px;
+      font-weight: bold;
+    }    
+
+    /* Bootcamp Banner */
+    .bootcamp-banner {
+      display: flex;
+      background: #c2b6e7;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      overflow: hidden;
+    }
+    .bootcamp-text {
+      flex: 1;
+      padding: 2rem;
+    }
+    .bootcamp-text h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .bootcamp-text p {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    .btn-register {
+      text-decoration: none;
+      font-weight: 600;
+      color: #6a45e5;
+    }
+    .bootcamp-illustration img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Keep Learning Card */
+    .keep-learning {
+      position: relative;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      overflow: hidden;
+    }
+    .kl-progress-bar {
+      height: 1.5rem;
+      background: repeating-linear-gradient(
+        45deg,
+        #e0e0e0 0,
+        #e0e0e0 10px,
+        #fff 10px,
+        #fff 20px
+      );
+    }
+    .kl-progress-bar .fill {
+      height: 100%;
+      background: #22c55e;
+      text-align: center;
+      line-height: 1.5rem;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+    .kl-content {
+      display: flex;
+      padding: 1.5rem;
+      gap: 2rem;
+    }
+    .course-info .label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+    .course-info h3 {
+      font-size: 1.25rem;
+      margin-bottom: 0.25rem;
+    }
+    .module {
+      font-size: 0.875rem;
+      color: #555;
+    }
+    .plan-suggestion h4 {
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+    .plan-suggestion p {
+      font-size: 0.875rem;
+      color: #555;
+      margin-bottom: 0.75rem;
+    }
+    .plan-actions button {
+      background: #fff;
+      border: 1px solid #6a45e5;
+      color: #6a45e5;
+      padding: 0.4rem 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .plan-actions .btn-dismiss {
+      border-color: #ccc;
+      color: #555;
+    }
+    .btn-resume {
+      display: block;
+      text-align: center;
+      background: #6a45e5;
+      color: #fff;
+      text-decoration: none;
+      padding: 0.75rem;
+      font-weight: 600;
+    }
+    .view-all {
+      display: block;
+      margin-top: 0.5rem;
+      text-decoration: none;
+      font-size: 0.875rem;
+      color: #6a45e5;
+      text-align: right;
+    }
+
+    /* ---- Hide sidebar on mobile ---- */
+    @media (max-width: 768px) {
+      .sidebar {
+        display: none;
+      }
+      .dashboard {
+        flex-direction: column;
+      }
+      .main-content {
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <div class="logo"><span style="font-weight: bolder;">strata.</span></div>
+    <ul class="nav-links">
+      <li><a href="#">Home</a></li>
+      <li><a href="#">Courses</a></li>
+      <li><a href="#">Wallet <span class="new">New Badge</span></a></li>
+      <li><a href="#">Rewards</a></li>
+    </ul>
+    <div class="actions">
+      <i class="fas fa-search"></i>
+      <i class="far fa-bell"></i>
       <div class="avatar"></div>
-      <button class="logout">Log Out</button>
+      <button class="btn-free">Log Out</button>
     </div>
   </header>
 
-  <main>
-    <h1>Generate Strata Dashboard Code</h1>
-    <p class="note">
-      Upload a CSV—any headers you include will become columns in the generated HTML table.
-    </p>
-    <input type="file" id="csv-input" accept=".csv">
-    <button id="generate-btn">Generate Code</button>
-    <textarea id="output-code" placeholder="Your generated HTML will appear here…"></textarea>
-  </main>
+  <div class="dashboard">
+    <aside class="sidebar">
+      <nav>
+        <ul>
+          <li class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</li>
+          <li><i class="fas fa-book-open"></i> Explore</li>
+          <li><i class="fas fa-wallet"></i> Wallet <span class="upgrade">New Badge</span></li>
+          <li><i class="fas fa-award"></i> Rewards</li>
+        </ul>
+      </nav>
+      <div class="trial-cta">
+        <h4>Try Plus or Pro with a 7-day free trial</h4>
+        <p>Go deeper and learn job-ready skills. Practice with real-world projects, take assessments, and earn certificates.</p>
+        <button class="btn-try">Try for free</button>
+      </div>
+    </aside>
 
-  <script>
-    let parsedRows = [];
+    <main class="main-content">
+      <section class="bootcamp-banner">
+        <div class="bootcamp-text">
+          <h2>Register for the 2026 Camp Catanese College Fair</h2>
+          <p>RSVP to attend the largest college fair in Arizona! Meet with representatives from 120+ universities!</p>
+          <a href="#" class="btn-register">Register now →</a>
+        </div>
+        <div class="bootcamp-illustration">
+          <!-- Illustration goes here -->
+        </div>
+      </section>
 
-    // 1) Parse CSV on upload
-    document.getElementById('csv-input').addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: results => {
-          parsedRows = results.data;
-          alert(`Parsed ${parsedRows.length} rows.`);
-        }
-      });
+      <div class="container">
+        <div class="profile-card">
+          <h2>${profileName}</h2>
+          <p>${profileEmail}</p>
+          <p><strong>Grade ${profileGrade}</strong></p>
+          <p>🏆 ${pointCount} Points</p>
+          <p>📜 ${credCount} Credentials</p>
+          <p>📈 ${pathCount} Pathways</p>
+        </div>
+        <div class="notification-card">
+          <h3>Notification Center</h3>
+          <div class="notification-banner">
+            <div class="notification-text">You earned a new badge!</div>
+          </div>
+        </div>
+      </div>
+
+${trackSections}
+
+    </main>
+  </div>
+</body>
+</html>`;
+
+      genOutput.value = dashboardHtml;
     });
 
-    // 2) Build the final code when clicked
-    document.getElementById('generate-btn').addEventListener('click', () => {
-      if (!parsedRows.length) {
-        return alert('Please upload a CSV first.');
+    beginBtn.addEventListener('click', async () => {
+      beginBtn.disabled = true;
+      beginBtn.textContent = 'Loading…';
+      selectorDiv.style.display = 'none';
+      selectEl.innerHTML = '<option value="" disabled selected>— select student —</option>';
+      infoDiv.innerHTML = '';
+      genBtn.style.display = 'none';
+      genOutput.value = '';
+
+      try {
+        const resp = await fetch('https://darianbenitezsanchez2143.github.io/database/');
+        if (!resp.ok) throw new Error(`Status ${resp.status}`);
+        const htmlText = await resp.text();
+        output.value = htmlText;
+
+        const match = htmlText.match(/const\s+rows\s*=\s*(\[[\s\S]*?\]);/);
+        if (!match) throw new Error('`rows` array not found');
+        allRows = JSON.parse(match[1]);
+
+        allRows.forEach(r => {
+          const opt = document.createElement('option');
+          opt.value = r.Name;
+          opt.textContent = r.Name;
+          selectEl.appendChild(opt);
+        });
+
+        if (allRows.length) selectorDiv.style.display = 'block';
+      } catch (err) {
+        output.value = `Error: ${err.message}`;
+      } finally {
+        beginBtn.disabled = false;
+        beginBtn.textContent = 'Begin Query';
       }
-
-      const lines = [];
-      const headers = Object.keys(parsedRows[0]);
-
-      // --- GENERATED HTML HEAD & STYLE (exact CSS you provided) ---
-      lines.push('<!DOCTYPE html>');
-      lines.push('<html lang="en">');
-      lines.push('<head>');
-      lines.push('  <meta charset="UTF-8">');
-      lines.push('  <title>Student Credentials</title>');
-      lines.push('  <style>');
-      lines.push('    * { box-sizing:border-box; margin:0; padding:0; }');
-      lines.push('    body { font-family: Arial, sans-serif; background:#f4f7fa; color:#333; }');
-      lines.push('    .site-header { background:#fff; padding:1rem 2rem; display:flex; align-items:center; justify-content:space-between; box-shadow:0 1px 3px rgba(0,0,0,0.1); }');
-      lines.push('    .site-header .logo { font-size:1.5rem; font-weight:bold; color:#000; }');
-      lines.push('    .site-header nav ul { list-style:none; display:flex; gap:2rem; }');
-      lines.push('    .site-header nav a { text-decoration:none; color:#333; font-weight:500; }');
-      lines.push('    .site-header .user-actions { display:flex; align-items:center; gap:1rem; }');
-      lines.push('    .site-header .avatar { width:32px; height:32px; border-radius:50%; background:#ddd; }');
-      lines.push('    .site-header .logout { background:#7c3aed; color:#fff; border:none; padding:0.5rem 1rem; border-radius:4px; cursor:pointer; font-weight:500; }');
-      lines.push('    main { padding:2rem; }');
-      lines.push('    .table-wrapper { overflow-x:auto; background:#fff; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }');
-      lines.push('    table { width:100%; border-collapse:collapse; }');
-      lines.push('    thead { background:#1e3a8a; color:#fff; }');
-      lines.push('    th, td { padding:0.75rem 1rem; border-bottom:1px solid #e2e8f0; text-align:left; white-space:nowrap; }');
-      lines.push('    tbody tr:nth-child(even) { background:#f9f9f9; }');
-      lines.push('    tbody tr:hover { background:#e2e8f0; }');
-      lines.push('  </style>');
-      lines.push('</head>');
-
-      // --- GENERATED PAGE BODY & HEADER ---
-      lines.push('<body>');
-      lines.push('  <header class="site-header">');
-      lines.push('    <div class="logo">strata.</div>');
-      lines.push('    <nav>');
-      lines.push('      <ul>');
-      lines.push('        <li><a href="#">Dashboard</a></li>');
-      lines.push('        <li><a href="#">Explore</a></li>');
-      lines.push('        <li><a href="#">Wallet</a></li>');
-      lines.push('        <li><a href="#">Rewards</a></li>');
-      lines.push('      </ul>');
-      lines.push('    </nav>');
-      lines.push('    <div class="user-actions">');
-      lines.push('      <div class="avatar"></div>');
-      lines.push('      <button class="logout">Log Out</button>');
-      lines.push('    </div>');
-      lines.push('  </header>');
-
-      // --- GENERATED TABLE ---
-      lines.push('  <main>');
-      lines.push('    <h1>Student Credentials</h1>');
-      lines.push('    <div class="table-wrapper">');
-      lines.push('      <table>');
-      lines.push('        <thead>');
-      lines.push('          <tr>');
-      headers.forEach(h => {
-        lines.push(`            <th>${h}</th>`);
-      });
-      lines.push('          </tr>');
-      lines.push('        </thead>');
-      lines.push('        <tbody id="data-body"></tbody>');
-      lines.push('      </table>');
-      lines.push('    </div>');
-      lines.push('  </main>');
-
-      // --- SCRIPT TO INJECT CSV DATA ---
-      lines.push('  <script>');
-      lines.push('    const rows = ' + JSON.stringify(parsedRows, null, 2) + ';');
-      lines.push('    const tbody = document.getElementById("data-body");');
-      lines.push('    const keys = Object.keys(rows[0]);');
-      lines.push('    rows.forEach(r => {');
-      lines.push('      const tr = document.createElement("tr");');
-      lines.push('      tr.innerHTML = keys.map(k => `<td>${r[k] || ""}</td>`).join("");');
-      lines.push('      tbody.appendChild(tr);');
-      lines.push('    });');
-      lines.push('  <\/script>');
-
-      lines.push('</body>');
-      lines.push('</html>');
-
-      // show it
-      const out = document.getElementById('output-code');
-      out.value = lines.join('\n');
-      out.style.display = 'block';
     });
   </script>
 
